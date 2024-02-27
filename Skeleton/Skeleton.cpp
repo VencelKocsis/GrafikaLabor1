@@ -61,13 +61,14 @@ const char* const fragmentSource = R"(
 
 GPUProgram gpuProgram;//vertex and fragment shaders
 unsigned int vao;//virtual world on the GPU
+bool isDrawingPoints = false;
 
-class PointCloud {
+class PointCollection {
 protected:
 	std::vector<vec3> points;
 	unsigned int vaoPointCloud, vboPointCloud;
 public:
-	PointCloud() {
+	PointCollection() {
 		glGenVertexArrays(1, &vaoPointCloud);
 		glBindVertexArray(vaoPointCloud);
 
@@ -106,13 +107,13 @@ public:
 	}
 };
 
-PointCloud* pointCloud;
+PointCollection* pointCollection;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
 	
-	pointCloud = new PointCloud();
+	pointCollection = new PointCollection();
 
 	// create program for the GPU
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
@@ -123,14 +124,25 @@ void onDisplay() {
 	glClearColor(0.25f, 0.25f, 0.25f, 1.0f);// background color
 	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
 
-	pointCloud->drawPoint();
+	pointCollection->drawPoint();
 
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
 
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
-	if (key == 'd') glutPostRedisplay();// if d, invalidate display, i.e. redraw
+	if (key == 'p') {
+		isDrawingPoints = true;
+	}
+	if (key == 'l') {
+
+	}
+	if (key == 'm') {
+
+	}
+	if (key == 'i') {
+
+	}
 }
 
 // Key of ASCII code released
@@ -151,8 +163,8 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 	float cY = 1.0f - 2.0f * pY / windowHeight;
 
-	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-		pointCloud->addPoint(cX, cY);
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN && isDrawingPoints) {
+		pointCollection->addPoint(cX, cY);
 		glutPostRedisplay();
 		printf("Point (%3.2f, %3.2f) added\n", cX, cY);
 	}

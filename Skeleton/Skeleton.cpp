@@ -60,13 +60,24 @@ const char* const fragmentSource = R"(
 )";
 
 GPUProgram gpuProgram;//vertex and fragment shaders
-unsigned int vao;//virtual world on the GPU
 bool isDrawingPoints = false;
+bool isDrawingLine = false;
+const int nTesselatedVertices = 100;
 
 class PointCollection {
-protected:
+public:
 	std::vector<vec3> points;
 	unsigned int vaoPointCloud, vboPointCloud;
+	unsigned int vaoLine, vboLine;
+	std::vector<vec3> selectedPoints;
+	vec3 startPoint;
+	vec3 endPoint;
+
+	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
+								  0, 1, 0, 0,    // row-major!
+								  0, 0, 1, 0,
+								  0, 0, 0, 1 };
+
 public:
 	PointCollection() {
 		glGenVertexArrays(1, &vaoPointCloud);
@@ -84,11 +95,6 @@ public:
 	}
 
 	void drawPoint() {
-		float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
-								  0, 1, 0, 0,    // row-major!
-								  0, 0, 1, 0,
-								  0, 0, 0, 1 };
-
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
 		// Set color to (0, 1, 0) = green
 		glUniform3f(location, 1.0f, 0.0f, 0.0f); // 3 floats
@@ -104,6 +110,55 @@ public:
 			glPointSize(10.0f);
 			glDrawArrays(GL_POINTS, 0, points.size());
 		}
+	}
+
+	void selectPoint(float cX, float cY, bool isStartPoint) {
+		vec3 wVertex = vec3(cX, cY, 0);
+		selectedPoints.push_back(wVertex);
+	}	
+
+	virtual vec3 r(float t) { return points[0]; }
+	virtual float tStart() { return 0; }
+	virtual float tEnd() { return 1; }
+
+	void drawLine(vec3 start, vec3 end) {
+		glGenVertexArrays(1, &vaoLine);
+		glBindVertexArray(vaoLine);
+
+		glGenBuffers(1, &vaoLine);
+		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
+
+		glEnableVertexAttribArray(0);
+
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), NULL);
+
+		std::vector<float> vertexData;
+		for (int i = 0; i < nTesselatedVertices; i++) {
+			float tNormalized = (float)i / (nTesselatedVertices - 1);
+			float t = tStart() + (tEnd() - tStart()) * tNormalized;
+			vec3 wVertex = r(t);
+			vertexData.push_back(wVertex.x);
+			vertexData.push_back(wVertex.y);
+		}
+		glBindVertexArray(vaoLine);
+		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
+		glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(float), &vertexData[0], GL_DYNAMIC_DRAW);
+		int location = glGetUniformLocation(gpuProgram.getId(), "color");
+		if (location >= 0) glUniform3f(location, 0, 1, 1);
+		glLineWidth(3.0f);
+		glDrawArrays(GL_LINE, 0, nTesselatedVertices);
+	}
+
+	void printLineEquations(const vec3 p0, const vec3 p1) {
+		float a = p1.y - p0.y;
+		float b = p0.x - p1.x;
+		float c = p0.x * p1.y - p1.x * p0.y;
+		
+		float dx = p1.x - p0.x;
+		float dy = p1.y - p0.y;
+
+		printf("\tImplicit: %3.2fx + %3.2fy + %3.2f = 0", a, b, c);
+		printf("\n\tParametric: %3.2f + %3.2ft, y = %3.2f + %3.2ft", p0.x, dx, p0.y, dy);
 	}
 };
 
@@ -133,9 +188,11 @@ void onDisplay() {
 void onKeyboard(unsigned char key, int pX, int pY) {
 	if (key == 'p') {
 		isDrawingPoints = true;
+		isDrawingLine = false;
 	}
 	if (key == 'l') {
-
+		isDrawingPoints = false;
+		isDrawingLine = true;
 	}
 	if (key == 'm') {
 
@@ -163,10 +220,23 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 	float cY = 1.0f - 2.0f * pY / windowHeight;
 
-	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN && isDrawingPoints) {
-		pointCollection->addPoint(cX, cY);
-		glutPostRedisplay();
-		printf("Point (%3.2f, %3.2f) added\n", cX, cY);
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+		if (isDrawingLine) {
+			bool isStartPoint = pointCollection->selectedPoints.empty();
+			pointCollection->selectPoint(cX, cY, isStartPoint);
+
+			if (pointCollection->selectedPoints.size() == 2) {
+				pointCollection->drawLine(pointCollection->startPoint, pointCollection->endPoint);
+				pointCollection->selectedPoints.clear();
+				printf("Line added");
+				pointCollection->printLineEquations(pointCollection->selectedPoints[0], pointCollection->selectedPoints[1]);
+			}
+		}
+		else if (isDrawingPoints) {
+			pointCollection->addPoint(cX, cY);
+			glutPostRedisplay();
+			printf("Point (%3.2f, %3.2f) added\n", cX, cY);
+		}
 	}
 }
 

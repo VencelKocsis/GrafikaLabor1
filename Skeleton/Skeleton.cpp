@@ -142,21 +142,15 @@ public:
 	virtual float tStart() { return 0; }
 	virtual float tEnd() { return 1; }
 
-	void drawLine(vec3 start, vec3 end) {
-		// Normalize the direction vector for better line thickness calculation
-		vec3 direction = normalize(end - start);
-
+	void drawLine(const vec3& p0, const vec3& p1) {
 		glBindVertexArray(vaoLine);
 		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
 
 		glEnableVertexAttribArray(0);
 		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), NULL);
 
-		// Create vertices for the line segment
-		std::vector<float> vertexData = { start.x, start.y, end.x, end.y };
-
 		// Update vertex data in the buffer
-		glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(float), &vertexData[0], GL_DYNAMIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * 2, &p0, GL_DYNAMIC_DRAW);
 
 		// Set cyan color
 		glUniform3f(glGetUniformLocation(gpuProgram.getId(), "color"), 0, 1, 1);
@@ -244,19 +238,16 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 
 			if (pointCollection->selectedPoints.size() == 2) {
 				for (int i = 0; i < pointCollection->selectedPoints.size(); i++) {
-					printf("\nBefore drawLine f: Selected points: %3.2d: %3.2f, %3.2f", i, pointCollection->selectedPoints[i].x, pointCollection->selectedPoints[i].y);
+					printf("\nBefore drawLine f: Selected points: P%d: %3.2f, %3.2f", i, pointCollection->selectedPoints[i].x, pointCollection->selectedPoints[i].y);
 				}
 				pointCollection->drawLine(pointCollection->selectedPoints[0], pointCollection->selectedPoints[1]);
-				for (int i = 0; i < pointCollection->selectedPoints.size(); i++) {
-					printf("\nAfter drawLine f: Selected points: %3.2d: %3.2f, %3.2f", i, pointCollection->selectedPoints[i].x, pointCollection->selectedPoints[i].y);
-				}
-				pointCollection->selectedPoints.clear();
-				for (int i = 0; i < pointCollection->selectedPoints.size(); i++) {
-					printf("\nAfter clear: Selected points: %3.2d: %3.2f, %3.2f", i, pointCollection->selectedPoints[i].x, pointCollection->selectedPoints[i].y);
-				}
 				glutPostRedisplay();
+				for (int i = 0; i < pointCollection->selectedPoints.size(); i++) {
+					printf("\nAfter drawLine f: Selected points: P%d: %3.2f, %3.2f", i, pointCollection->selectedPoints[i].x, pointCollection->selectedPoints[i].y);
+				}
 				printf("\nLine added");
 				pointCollection->printLineEquations(pointCollection->selectedPoints[0], pointCollection->selectedPoints[1]);
+				pointCollection->selectedPoints.clear();
 			}
 		}
 		else if (isDrawingPoints) {
@@ -264,7 +255,6 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 			glutPostRedisplay();
 			printf("Point (%3.2f, %3.2f) added\n", cX, cY);
 		}
-		glutPostRedisplay();
 	}
 }
 

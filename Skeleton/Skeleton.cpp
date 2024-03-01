@@ -70,8 +70,6 @@ public:
 	unsigned int vaoPointCloud, vboPointCloud;
 	unsigned int vaoLine, vboLine;
 	std::vector<vec3> selectedPoints;
-	vec3 startPoint;
-	vec3 endPoint;
 
 	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
 								  0, 1, 0, 0,    // row-major!
@@ -87,6 +85,14 @@ public:
 		glBindBuffer(GL_ARRAY_BUFFER, vboPointCloud);
 		glEnableVertexAttribArray(0);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), NULL);
+
+		glGenVertexArrays(1, &vaoLine);
+		glBindVertexArray(vaoLine);
+
+		glGenBuffers(1, &vboLine);
+		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), NULL);
 	}
 
 	void addPoint(float cX, float cY) {
@@ -98,7 +104,7 @@ public:
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
 		// Set color to (0, 1, 0) = green
 		glUniform3f(location, 1.0f, 0.0f, 0.0f); // 3 floats
-		
+
 		location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
 		glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);	// Load a 4x4 row-major float matrix to the specified location
 
@@ -112,41 +118,53 @@ public:
 		}
 	}
 
-	void selectPoint(float cX, float cY, bool isStartPoint) {
+	bool pointExists(float cX, float cY) {
+		for (int i = 0; i < points.size(); i++) {
+			if (abs(points[i].x - cX) < 0.01 && abs(points[i].y - cY) < 0.01) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void selectPoint(float cX, float cY) {
 		vec3 wVertex = vec3(cX, cY, 0);
-		selectedPoints.push_back(wVertex);
-	}	
+		if (pointExists(cX, cY)) {
+			selectedPoints.push_back(wVertex);
+			printf("\nSelected point exists: %3.2f, %3.2f", cX, cY);
+		}
+		else {
+			printf("\nThere is no existing point");
+		}
+	}
 
 	virtual vec3 r(float t) { return points[0]; }
 	virtual float tStart() { return 0; }
 	virtual float tEnd() { return 1; }
 
 	void drawLine(vec3 start, vec3 end) {
-		glGenVertexArrays(1, &vaoLine);
-		glBindVertexArray(vaoLine);
+		// Normalize the direction vector for better line thickness calculation
+		vec3 direction = normalize(end - start);
 
-		glGenBuffers(1, &vaoLine);
+		glBindVertexArray(vaoLine);
 		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
 
 		glEnableVertexAttribArray(0);
-
 		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), NULL);
 
-		std::vector<float> vertexData;
-		for (int i = 0; i < nTesselatedVertices; i++) {
-			float tNormalized = (float)i / (nTesselatedVertices - 1);
-			float t = tStart() + (tEnd() - tStart()) * tNormalized;
-			vec3 wVertex = r(t);
-			vertexData.push_back(wVertex.x);
-			vertexData.push_back(wVertex.y);
-		}
-		glBindVertexArray(vaoLine);
-		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
+		// Create vertices for the line segment
+		std::vector<float> vertexData = { start.x, start.y, end.x, end.y };
+
+		// Update vertex data in the buffer
 		glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(float), &vertexData[0], GL_DYNAMIC_DRAW);
-		int location = glGetUniformLocation(gpuProgram.getId(), "color");
-		if (location >= 0) glUniform3f(location, 0, 1, 1);
+
+		// Set cyan color
+		glUniform3f(glGetUniformLocation(gpuProgram.getId(), "color"), 0, 1, 1);
+
+		// Set line thickness
 		glLineWidth(3.0f);
-		glDrawArrays(GL_LINE, 0, nTesselatedVertices);
+
+		glDrawArrays(GL_LINES, 0, 2);
 	}
 
 	void printLineEquations(const vec3 p0, const vec3 p1) {
@@ -157,8 +175,8 @@ public:
 		float dx = p1.x - p0.x;
 		float dy = p1.y - p0.y;
 
-		printf("\tImplicit: %3.2fx + %3.2fy + %3.2f = 0", a, b, c);
-		printf("\n\tParametric: %3.2f + %3.2ft, y = %3.2f + %3.2ft", p0.x, dx, p0.y, dy);
+		printf("\n\tImplicit: %3.2fx + %3.2fy + %3.2f = 0", a, b, c);
+		printf("\n\tParametric: %3.2f + %3.2ft, y = %3.2f + %3.2ft\n", p0.x, dx, p0.y, dy);
 	}
 };
 
@@ -222,13 +240,22 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
 		if (isDrawingLine) {
-			bool isStartPoint = pointCollection->selectedPoints.empty();
-			pointCollection->selectPoint(cX, cY, isStartPoint);
+			pointCollection->selectPoint(cX, cY);
 
 			if (pointCollection->selectedPoints.size() == 2) {
-				pointCollection->drawLine(pointCollection->startPoint, pointCollection->endPoint);
+				for (int i = 0; i < pointCollection->selectedPoints.size(); i++) {
+					printf("\nBefore drawLine f: Selected points: %3.2d: %3.2f, %3.2f", i, pointCollection->selectedPoints[i].x, pointCollection->selectedPoints[i].y);
+				}
+				pointCollection->drawLine(pointCollection->selectedPoints[0], pointCollection->selectedPoints[1]);
+				for (int i = 0; i < pointCollection->selectedPoints.size(); i++) {
+					printf("\nAfter drawLine f: Selected points: %3.2d: %3.2f, %3.2f", i, pointCollection->selectedPoints[i].x, pointCollection->selectedPoints[i].y);
+				}
 				pointCollection->selectedPoints.clear();
-				printf("Line added");
+				for (int i = 0; i < pointCollection->selectedPoints.size(); i++) {
+					printf("\nAfter clear: Selected points: %3.2d: %3.2f, %3.2f", i, pointCollection->selectedPoints[i].x, pointCollection->selectedPoints[i].y);
+				}
+				glutPostRedisplay();
+				printf("\nLine added");
 				pointCollection->printLineEquations(pointCollection->selectedPoints[0], pointCollection->selectedPoints[1]);
 			}
 		}
@@ -237,6 +264,7 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 			glutPostRedisplay();
 			printf("Point (%3.2f, %3.2f) added\n", cX, cY);
 		}
+		glutPostRedisplay();
 	}
 }
 

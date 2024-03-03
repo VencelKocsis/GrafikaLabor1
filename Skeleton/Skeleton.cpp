@@ -59,6 +59,8 @@ const char* const fragmentSource = R"(
 	}
 )";
 
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
+
 GPUProgram gpuProgram;//vertex and fragment shaders
 bool isDrawingPoints = false;
 bool isDrawingLine = false;
@@ -139,23 +141,7 @@ public:
 
 	int getSelectedPointsSize() { return selectedPoints.size(); }
 
-	virtual vec3 r(float t) { return points[0]; }
-	virtual float tStart() { return 0; }
-	virtual float tEnd() { return 1; }
-
 	int getSize() { return points.size(); }
-
-	void printLineEquations(const vec3 p0, const vec3 p1) {
-		float a = p1.y - p0.y;
-		float b = p0.x - p1.x;
-		float c = p0.x * p1.y - p1.x * p0.y;
-		
-		float dx = p1.x - p0.x;
-		float dy = p1.y - p0.y;
-
-		printf("\n\tImplicit: %3.2fx + %3.2fy + %3.2f = 0", a, b, c);
-		printf("\n\tParametric: %3.2f + %3.2ft, y = %3.2f + %3.2ft\n", p0.x, dx, p0.y, dy);
-	}
 };
 
 class Line {
@@ -170,13 +156,18 @@ public:
 		this->color = color;
 		this->width = width;
 
+		vec3 direction = p1 - p0;
+
+		this->p0 = p0 - direction * 600;
+		this->p1 = p0 + direction * 600;
+
 		glGenVertexArrays(1, &vaoLine);
 		glBindVertexArray(vaoLine);
 
 		glGenBuffers(1, &vboLine);
 		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
 
-		std::vector<vec3> vertices = { p0, p1 };
+		std::vector<vec3> vertices = { this->p0, this->p1 };
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_STATIC_DRAW);
 
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -204,12 +195,25 @@ public:
 
 	void addLine(const vec3& p0, const vec3& p1, const vec3& color, float width) {
 		lines.push_back(Line(p0, p1, color, width));
+		printLineEquations(p0, p1);
 	}
 
 	void drawLines() {
 		for (Line& line : lines) {
 			line.draw();
 		}
+	}
+
+	void printLineEquations(const vec3 p0, const vec3 p1) {
+		float a = p1.y - p0.y;
+		float b = p0.x - p1.x;
+		float c = p0.x * p1.y - p1.x * p0.y;
+
+		float dx = p1.x - p0.x;
+		float dy = p1.y - p0.y;
+
+		printf("\n\tImplicit: %3.2fx + %3.2fy + %3.2f = 0", a, b, c);
+		printf("\n\tParametric: %3.2f + %3.2ft, y = %3.2f + %3.2ft\n", p0.x, dx, p0.y, dy);
 	}
 };
 
@@ -280,20 +284,19 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
 		if (isDrawingLine && pointCollection->getSelectedPointsSize() < 2) {
 			pointCollection->selectPoint(cX, cY);
-			printf("\nPoint selected for line drawing: %3.2f, %3.2f\n", cX, cY);
-			printf("\nselectedPoints size: %d", pointCollection->getSelectedPointsSize());
+			printf("\nDefine Lines");
 
 			if (pointCollection->getSelectedPointsSize() == 2) {
+				printf("\nLine added");
 				lineCollection->addLine(pointCollection->getSelectedPointsbyIndex(0), pointCollection->getSelectedPointsbyIndex(1), vec3(0.0f, 1.0f, 1.0f), 3.0f);
 				glutPostRedisplay();
-				printf("\nselectedPoints size is equal to 2");
 				pointCollection->clearSelectedPoints();
 			}
 		}
 		else if (isDrawingPoints) {
 			pointCollection->addPoint(cX, cY);
 			glutPostRedisplay();
-			printf("\nPoint (%3.2f, %3.2f) added\n", cX, cY);
+			printf("\nPoint (%3.2f, %3.2f) added", cX, cY);
 		}
 	}
 }

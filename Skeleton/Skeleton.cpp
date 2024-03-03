@@ -62,12 +62,11 @@ const char* const fragmentSource = R"(
 GPUProgram gpuProgram;//vertex and fragment shaders
 bool isDrawingPoints = false;
 bool isDrawingLine = false;
-const int nTesselatedVertices = 100;
 
 class PointCollection {
 public:
 	std::vector<vec3> points;
-	unsigned int vaoPointCloud, vboPointCloud;
+	unsigned int vaoPointCollection, vboPointCollection;
 	unsigned int vaoLine, vboLine;
 	std::vector<vec3> selectedPoints;
 
@@ -78,21 +77,13 @@ public:
 
 public:
 	PointCollection() {
-		glGenVertexArrays(1, &vaoPointCloud);
-		glBindVertexArray(vaoPointCloud);
+		glGenVertexArrays(1, &vaoPointCollection);
+		glBindVertexArray(vaoPointCollection);
 
-		glGenBuffers(1, &vboPointCloud);
-		glBindBuffer(GL_ARRAY_BUFFER, vboPointCloud);
+		glGenBuffers(1, &vboPointCollection);
+		glBindBuffer(GL_ARRAY_BUFFER, vboPointCollection);
 		glEnableVertexAttribArray(0);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), NULL);
-
-		glGenVertexArrays(1, &vaoLine);
-		glBindVertexArray(vaoLine);
-
-		glGenBuffers(1, &vboLine);
-		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), NULL);
 	}
 
 	void addPoint(float cX, float cY) {
@@ -102,15 +93,14 @@ public:
 
 	void drawPoint() {
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
-		// Set color to (0, 1, 0) = green
 		glUniform3f(location, 1.0f, 0.0f, 0.0f); // 3 floats
 
 		location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
 		glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);	// Load a 4x4 row-major float matrix to the specified location
 
 		if (points.size() > 0) {
-			glBindVertexArray(vaoPointCloud);
-			glBindBuffer(GL_ARRAY_BUFFER, vboPointCloud);
+			glBindVertexArray(vaoPointCollection);
+			glBindBuffer(GL_ARRAY_BUFFER, vboPointCollection);
 			glBufferData(GL_ARRAY_BUFFER, points.size() * 3 * sizeof(float), &points[0], GL_DYNAMIC_DRAW);
 			if (location >= 0) glUniform3f(location, 1, 0, 0);
 			glPointSize(10.0f);
@@ -142,25 +132,6 @@ public:
 	virtual float tStart() { return 0; }
 	virtual float tEnd() { return 1; }
 
-	void drawLine(const vec3& p0, const vec3& p1) {
-		glBindVertexArray(vaoLine);
-		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
-
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), NULL);
-
-		// Update vertex data in the buffer
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * 2, &p0, GL_DYNAMIC_DRAW);
-
-		// Set cyan color
-		glUniform3f(glGetUniformLocation(gpuProgram.getId(), "color"), 0, 1, 1);
-
-		// Set line thickness
-		glLineWidth(3.0f);
-
-		glDrawArrays(GL_LINES, 0, 2);
-	}
-
 	void printLineEquations(const vec3 p0, const vec3 p1) {
 		float a = p1.y - p0.y;
 		float b = p0.x - p1.x;
@@ -174,13 +145,73 @@ public:
 	}
 };
 
+class Line {
+private:
+	vec3 p0, p1, color;
+	float width;
+	GLuint vaoLine, vboLine;
+public:
+	Line(const vec3& p0, const vec3& p1, const vec3& color = vec3(0.0f, 1.0f, 1.0f), float width = 3.0f) {
+		this->p0 = p0;
+		this->p1 = p1;
+		this->color = color;
+		this->width = width;
+
+		glGenVertexArrays(1, &vaoLine);
+		glBindVertexArray(vaoLine);
+
+		glGenBuffers(1, &vboLine);
+		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
+
+		std::vector<vec3> vertices = { p0, p1 };
+		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_STATIC_DRAW);
+
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+		glEnableVertexAttribArray(0);
+	}
+
+	void draw() {
+		glLineWidth(3.0f);
+
+		glUniform3fv(glGetUniformLocation(gpuProgram.getId(), "color"), 1, &color.x);
+
+		glBindVertexArray(vaoLine);
+
+		glDrawArrays(GL_LINES, 0, 2);
+	}
+};
+
+class LineCollection {
+private: 
+	std::vector<Line> lines;
+public:
+	LineCollection() {
+
+	}
+
+	void addLine(const vec3& p0, const vec3& p1, const vec3& color, float width) {
+		lines.push_back(Line(p0, p1, color, width));
+	}
+
+	void drawLines() {
+		for (int i = 0; i < lines.size(); i++) {
+			lines[0].draw();
+		}
+	}
+};
+
 PointCollection* pointCollection;
+LineCollection* lineCollection;
+
 
 // Initialization, create an OpenGL context
 void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
 	
 	pointCollection = new PointCollection();
+	lineCollection = new LineCollection();
+	//line = new Line(vec3(-1.0f, -1.0f), vec3(1.0f, 1.0f), vec3(0, 1, 1), 3.0f);
+	//line = new Line(vec3(0.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
 
 	// create program for the GPU
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
@@ -192,6 +223,7 @@ void onDisplay() {
 	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
 
 	pointCollection->drawPoint();
+	//lineCollection->drawLines();
 
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
@@ -231,27 +263,25 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 	// Convert to normalized device space
 	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 	float cY = 1.0f - 2.0f * pY / windowHeight;
+	std::vector<vec3> selectedPoints;
+	vec3 p0 = vec3(-0.9f, -0.9f, 0.0f);
+	vec3 p1 = vec3(0.9f, 0.9f, 0.0f);
+	vec3 color = vec3(0.0f, 1.0f, 1.0f);
+	float width = 3.0f;
 
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
 		if (isDrawingLine) {
-			pointCollection->selectPoint(cX, cY);
-
-			if (pointCollection->selectedPoints.size() == 2) {
-				for (int i = 0; i < pointCollection->selectedPoints.size(); i++) {
-					printf("\nBefore drawLine f: Selected points: P%d: %3.2f, %3.2f", i, pointCollection->selectedPoints[i].x, pointCollection->selectedPoints[i].y);
-				}
-				pointCollection->drawLine(pointCollection->selectedPoints[0], pointCollection->selectedPoints[1]);
-				glutPostRedisplay();
-				for (int i = 0; i < pointCollection->selectedPoints.size(); i++) {
-					printf("\nAfter drawLine f: Selected points: P%d: %3.2f, %3.2f", i, pointCollection->selectedPoints[i].x, pointCollection->selectedPoints[i].y);
-				}
-				printf("\nLine added");
-				pointCollection->printLineEquations(pointCollection->selectedPoints[0], pointCollection->selectedPoints[1]);
-				pointCollection->selectedPoints.clear();
+			lineCollection->addLine(p0, p1, color, width);
+			selectedPoints.push_back(vec3(cX, cY, 0.0f));
+			if (selectedPoints.size() == 2) {
+				for (int i = 0; i < 2; i++)
+					printf("%3.2f, %3.2f", selectedPoints[i].x, selectedPoints[i].y);
+				selectedPoints.clear();
 			}
 		}
 		else if (isDrawingPoints) {
 			pointCollection->addPoint(cX, cY);
+			//lineCollection->addLine(cX, cY, vec3(0, 1, 1), 3.0f);
 			glutPostRedisplay();
 			printf("Point (%3.2f, %3.2f) added\n", cX, cY);
 		}

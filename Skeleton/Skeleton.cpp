@@ -110,7 +110,7 @@ public:
 
 	bool pointExists(float cX, float cY) {
 		for (int i = 0; i < points.size(); i++) {
-			if (abs(points[i].x - cX) < 0.01 && abs(points[i].y - cY) < 0.01) {
+			if (abs(points[i].x - cX) < 0.02 && abs(points[i].y - cY) < 0.02) {
 				return true;
 			}
 		}
@@ -118,15 +118,26 @@ public:
 	}
 
 	void selectPoint(float cX, float cY) {
-		vec3 wVertex = vec3(cX, cY, 0);
 		if (pointExists(cX, cY)) {
-			selectedPoints.push_back(wVertex);
-			printf("\nSelected point exists: %3.2f, %3.2f", cX, cY);
+			addSelectedPoint(cX, cY);
 		}
 		else {
-			printf("\nThere is no existing point");
+			printf("\nThe Selected Point does not exists. Select a valid point");
 		}
 	}
+
+	void addSelectedPoint(float cX, float cY) { selectedPoints.push_back(vec3(cX, cY, 0.0f)); }
+
+	void clearSelectedPoints() { selectedPoints.clear(); }
+
+	vec3 getSelectedPointsbyIndex(int i) {
+		if (selectedPoints.size() != 0)
+			return selectedPoints[i];
+		else
+			return vec3(-1, -1, -1);
+	}
+
+	int getSelectedPointsSize() { return selectedPoints.size(); }
 
 	virtual vec3 r(float t) { return points[0]; }
 	virtual float tStart() { return 0; }
@@ -173,7 +184,7 @@ public:
 	}
 
 	void draw() {
-		glLineWidth(3.0f);
+		glLineWidth(width);
 
 		glUniform3fv(glGetUniformLocation(gpuProgram.getId(), "color"), 1, &color.x);
 
@@ -196,8 +207,8 @@ public:
 	}
 
 	void drawLines() {
-		for (int i = 0; i < lines.size(); i++) {
-			lines[0].draw();
+		for (Line& line : lines) {
+			line.draw();
 		}
 	}
 };
@@ -265,27 +276,24 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 	// Convert to normalized device space
 	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 	float cY = 1.0f - 2.0f * pY / windowHeight;
-	/*std::vector<vec3> selectedPoints;
-	vec3 p0 = vec3(-0.9f, -0.9f, 0.0f);
-	vec3 p1 = vec3(0.9f, 0.9f, 0.0f);
-	vec3 color = vec3(0.0f, 1.0f, 1.0f);
-	float width = 3.0f;*/
-	std::vector<vec3> selectedPoints;
 
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-		if (isDrawingLine) {
-			selectedPoints.push_back(vec3(cX, cY, 0.0f));
-			lineCollection->addLine(selectedPoints[0], selectedPoints[1], vec3(0, 1, 1), 3.0f);
-			selectedPoints.clear();
+		if (isDrawingLine && pointCollection->getSelectedPointsSize() < 2) {
+			pointCollection->selectPoint(cX, cY);
+			printf("\nPoint selected for line drawing: %3.2f, %3.2f\n", cX, cY);
+			printf("\nselectedPoints size: %d", pointCollection->getSelectedPointsSize());
+
+			if (pointCollection->getSelectedPointsSize() == 2) {
+				lineCollection->addLine(pointCollection->getSelectedPointsbyIndex(0), pointCollection->getSelectedPointsbyIndex(1), vec3(0.0f, 1.0f, 1.0f), 3.0f);
+				glutPostRedisplay();
+				printf("\nselectedPoints size is equal to 2");
+				pointCollection->clearSelectedPoints();
+			}
 		}
 		else if (isDrawingPoints) {
 			pointCollection->addPoint(cX, cY);
-			//lineCollection->addLine(cX, cY, vec3(0, 1, 1), 3.0f);
-			if (pointCollection->getSize() >= 2) {
-				lineCollection->addLine(pointCollection->points[0], pointCollection->points[1], vec3(0, 1, 1), 3.0f);
-			}
 			glutPostRedisplay();
-			printf("Point (%3.2f, %3.2f) added\n", cX, cY);
+			printf("\nPoint (%3.2f, %3.2f) added\n", cX, cY);
 		}
 	}
 }

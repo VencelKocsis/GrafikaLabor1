@@ -132,6 +132,8 @@ public:
 	virtual float tStart() { return 0; }
 	virtual float tEnd() { return 1; }
 
+	int getSize() { return points.size(); }
+
 	void printLineEquations(const vec3 p0, const vec3 p1) {
 		float a = p1.y - p0.y;
 		float b = p0.x - p1.x;
@@ -202,7 +204,7 @@ public:
 
 PointCollection* pointCollection;
 LineCollection* lineCollection;
-
+//Line* line;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -211,7 +213,6 @@ void onInitialization() {
 	pointCollection = new PointCollection();
 	lineCollection = new LineCollection();
 	//line = new Line(vec3(-1.0f, -1.0f), vec3(1.0f, 1.0f), vec3(0, 1, 1), 3.0f);
-	//line = new Line(vec3(0.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
 
 	// create program for the GPU
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
@@ -223,7 +224,8 @@ void onDisplay() {
 	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
 
 	pointCollection->drawPoint();
-	//lineCollection->drawLines();
+	lineCollection->drawLines();
+	//line->draw();
 
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
@@ -263,25 +265,25 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 	// Convert to normalized device space
 	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 	float cY = 1.0f - 2.0f * pY / windowHeight;
-	std::vector<vec3> selectedPoints;
+	/*std::vector<vec3> selectedPoints;
 	vec3 p0 = vec3(-0.9f, -0.9f, 0.0f);
 	vec3 p1 = vec3(0.9f, 0.9f, 0.0f);
 	vec3 color = vec3(0.0f, 1.0f, 1.0f);
-	float width = 3.0f;
+	float width = 3.0f;*/
+	std::vector<vec3> selectedPoints;
 
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
 		if (isDrawingLine) {
-			lineCollection->addLine(p0, p1, color, width);
 			selectedPoints.push_back(vec3(cX, cY, 0.0f));
-			if (selectedPoints.size() == 2) {
-				for (int i = 0; i < 2; i++)
-					printf("%3.2f, %3.2f", selectedPoints[i].x, selectedPoints[i].y);
-				selectedPoints.clear();
-			}
+			lineCollection->addLine(selectedPoints[0], selectedPoints[1], vec3(0, 1, 1), 3.0f);
+			selectedPoints.clear();
 		}
 		else if (isDrawingPoints) {
 			pointCollection->addPoint(cX, cY);
 			//lineCollection->addLine(cX, cY, vec3(0, 1, 1), 3.0f);
+			if (pointCollection->getSize() >= 2) {
+				lineCollection->addLine(pointCollection->points[0], pointCollection->points[1], vec3(0, 1, 1), 3.0f);
+			}
 			glutPostRedisplay();
 			printf("Point (%3.2f, %3.2f) added\n", cX, cY);
 		}

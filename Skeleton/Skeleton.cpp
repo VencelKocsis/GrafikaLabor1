@@ -150,6 +150,7 @@ private:
 	vec3 p0, p1, color;
 	float width;
 	GLuint vaoLine, vboLine;
+	vec2 wTranslate;
 public:
 	Line(const vec3& p0, const vec3& p1, const vec3& color = vec3(0.0f, 1.0f, 1.0f), float width = 3.0f) {
 		this->p0 = p0;
@@ -187,15 +188,28 @@ public:
 
 	const vec3 getP0() { return this->p0; }
 	const vec3 getP1() { return this->p1; }
+	vec3 getDirection() { return this->p1 - this->p0; }
+	void updateEndPoints(const vec3& newP0, const vec3& newP1) {
+		this->p0 = newP0;
+		this->p1 = newP1;
+	}
+
+	void AddTranslation(vec2 wT) { wTranslate = wTranslate + wT; }
+	void updateVertices() {
+		vec3 newP0 = this->p0 + vec3(wTranslate.x, wTranslate.y, 0.0f);
+		vec3 newP1 = this->p1 + vec3(wTranslate.x, wTranslate.y, 0.0f);
+
+		std::vector<vec3> vertices = { newP0, newP1 };
+		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
+		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_DYNAMIC_DRAW);
+	}
 };
 
 class LineCollection {
 private: 
 	std::vector<Line> lines;
 public:
-	LineCollection() {
-
-	}
+	LineCollection() {}
 
 	void addLine(const vec3& p0, const vec3& p1, const vec3& color, float width) {
 		lines.push_back(Line(p0, p1, color, width));
@@ -225,20 +239,31 @@ public:
 		return d < 0.02;
 	}
 
-	bool isCursorOnLine(float cX, float cY) {
+	Line* isCursorOnLine(float cX, float cY) {
 		vec3 cursor = vec3(cX, cY, 0);
 
 		for (Line& line : lines) {
 			if (isPointOnLine(cursor, line.getP0(), line.getP1())) {
-				return true;
+				return &line;
 			}
 		}
-		return false;
+		return nullptr;
+	}
+
+	void updateEndPoints(const Line& selectedLine, const vec3& newP0, const vec3& newP1) {
+		for (Line& line : lines) {
+			if (&line == &selectedLine) {
+				line.updateEndPoints(newP0, newP1);
+				line.draw();
+				break;
+			}
+		}
 	}
 };
 
 PointCollection* pointCollection;
 LineCollection* lineCollection;
+Line* selectedLine;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -256,8 +281,8 @@ void onDisplay() {
 	glClearColor(0.25f, 0.25f, 0.25f, 1.0f);// background color
 	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
 
-	pointCollection->drawPoint();
 	lineCollection->drawLines();
+	pointCollection->drawPoint();	
 
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
@@ -278,20 +303,39 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 		isMovingLine = true;
 	}
 	if (key == 'i') {
-
+		
 	}
 }
 
 // Key of ASCII code released
-void onKeyboardUp(unsigned char key, int pX, int pY) {
-}
+void onKeyboardUp(unsigned char key, int pX, int pY) {}
 
 // Move mouse with key pressed
 void onMouseMotion(int pX, int pY) {	// pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
-	// Convert to normalized device space
 	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 	float cY = 1.0f - 2.0f * pY / windowHeight;
-	printf("Mouse moved to (%3.2f, %3.2f)\n", cX, cY);
+	printf("\nMouse moved to (%3.2f, %3.2f)\n", cX, cY);
+	
+	static float prevX = 0.0f;
+	static float prevY = 0.0f;
+
+	if (!isMovingLine || prevX == 0 || prevY == 0) {
+		prevX = cX;
+		prevY = cY;
+	}
+
+	if (isMovingLine && selectedLine) {
+		float deltaX = cX - prevX;
+		float deltaY = cY - prevY;
+		
+		prevX = cX;
+		prevY = cY;
+
+		selectedLine->AddTranslation(vec2(deltaX, deltaY));
+		selectedLine->updateVertices();
+
+		glutPostRedisplay();
+	}
 }
 
 // Mouse click event
@@ -319,12 +363,15 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 		}
 		else if (isMovingLine) {
 			if (lineCollection->isCursorOnLine(cX, cY)) {
+				selectedLine = lineCollection->isCursorOnLine(cX, cY);
 				printf("\nLine selected");
 			}
 			else {
 				printf("\nNo Line selected");
 			}
 		}
+	} else if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
+		isMovingLine = false;	
 	}
 }
 

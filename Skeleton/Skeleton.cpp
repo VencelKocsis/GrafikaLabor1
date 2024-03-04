@@ -186,14 +186,16 @@ public:
 	}
 
 	const vec3 getP0() const {
-		float cX = 2.0f * this->p0.x / windowHeight - 1;
+		/*float cX = 2.0f * this->p0.x / windowHeight - 1;
 		float cY = 1.0f - 2.0f * this->p0.y / windowHeight;
-		return vec3(cX, cY, 0.0f);
+		return vec3(cX, cY, 0.0f);*/
+		return this->p0;
 	}
 	const vec3 getP1() const {
-		float cX = 2.0f * this->p1.x / windowWidth - 1;
+		/*float cX = 2.0f * this->p1.x / windowWidth - 1;
 		float cY = 1.0f - 2.0f * this->p1.y / windowHeight;
-		return vec3(cX, cY, 0.0f);
+		return vec3(cX, cY, 0.0f);*/
+		return this->p1;
 	}
 	vec3 getDirection() { return this->p1 - this->p0; }
 	void updateEndPoints(const vec3& newP0, const vec3& newP1) {

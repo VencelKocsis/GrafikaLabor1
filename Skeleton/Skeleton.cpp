@@ -31,7 +31,7 @@
 // Tudomasul veszem, hogy a forrasmegjeloles kotelmenek megsertese eseten a hazifeladatra adhato pontokat
 // negativ elojellel szamoljak el es ezzel parhuzamosan eljaras is indul velem szemben.
 //=============================================================================================
-#include "framework.h"
+#include "framework.h"	
 
 // vertex shader in GLSL: It is a Raw string (C++11) since it contains new line characters
 const char* const vertexSource = R"(
@@ -64,6 +64,7 @@ const char* const fragmentSource = R"(
 GPUProgram gpuProgram;//vertex and fragment shaders
 bool isDrawingPoints = false;
 bool isDrawingLine = false;
+bool isMovingLine = false;
 
 class PointCollection {
 public:
@@ -183,6 +184,9 @@ public:
 
 		glDrawArrays(GL_LINES, 0, 2);
 	}
+
+	const vec3 getP0() { return this->p0; }
+	const vec3 getP1() { return this->p1; }
 };
 
 class LineCollection {
@@ -215,11 +219,26 @@ public:
 		printf("\n\tImplicit: %3.2fx + %3.2fy + %3.2f = 0", a, b, c);
 		printf("\n\tParametric: %3.2f + %3.2ft, y = %3.2f + %3.2ft\n", p0.x, dx, p0.y, dy);
 	}
+
+	bool isPointOnLine(vec3 point, vec3 p0, vec3 p1) {
+		float d = length(cross(p1 - p0, p0 - point)) / length(p1 - p0);
+		return d < 0.02;
+	}
+
+	bool isCursorOnLine(float cX, float cY) {
+		vec3 cursor = vec3(cX, cY, 0);
+
+		for (Line& line : lines) {
+			if (isPointOnLine(cursor, line.getP0(), line.getP1())) {
+				return true;
+			}
+		}
+		return false;
+	}
 };
 
 PointCollection* pointCollection;
 LineCollection* lineCollection;
-//Line* line;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -227,8 +246,7 @@ void onInitialization() {
 	
 	pointCollection = new PointCollection();
 	lineCollection = new LineCollection();
-	//line = new Line(vec3(-1.0f, -1.0f), vec3(1.0f, 1.0f), vec3(0, 1, 1), 3.0f);
-
+	
 	// create program for the GPU
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
 }
@@ -240,7 +258,6 @@ void onDisplay() {
 
 	pointCollection->drawPoint();
 	lineCollection->drawLines();
-	//line->draw();
 
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
@@ -256,7 +273,9 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 		isDrawingLine = true;
 	}
 	if (key == 'm') {
-
+		isDrawingPoints = false;
+		isDrawingLine = false;
+		isMovingLine = true;
 	}
 	if (key == 'i') {
 
@@ -272,7 +291,7 @@ void onMouseMotion(int pX, int pY) {	// pX, pY are the pixel coordinates of the 
 	// Convert to normalized device space
 	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 	float cY = 1.0f - 2.0f * pY / windowHeight;
-	//printf("Mouse moved to (%3.2f, %3.2f)\n", cX, cY);
+	printf("Mouse moved to (%3.2f, %3.2f)\n", cX, cY);
 }
 
 // Mouse click event
@@ -297,6 +316,14 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 			pointCollection->addPoint(cX, cY);
 			glutPostRedisplay();
 			printf("\nPoint (%3.2f, %3.2f) added", cX, cY);
+		}
+		else if (isMovingLine) {
+			if (lineCollection->isCursorOnLine(cX, cY)) {
+				printf("\nLine selected");
+			}
+			else {
+				printf("\nNo Line selected");
+			}
 		}
 	}
 }

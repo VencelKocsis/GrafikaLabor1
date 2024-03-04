@@ -59,12 +59,11 @@ const char* const fragmentSource = R"(
 	}
 )";
 
-#define MIN(a,b) ((a) < (b) ? (a) : (b))
-
 GPUProgram gpuProgram;//vertex and fragment shaders
 bool isDrawingPoints = false;
 bool isDrawingLine = false;
 bool isMovingLine = false;
+bool isIntersect = false;
 
 class PointCollection {
 public:
@@ -186,8 +185,16 @@ public:
 		glDrawArrays(GL_LINES, 0, 2);
 	}
 
-	const vec3 getP0() { return this->p0; }
-	const vec3 getP1() { return this->p1; }
+	const vec3 getP0() const {
+		float cX = 2.0f * this->p0.x / windowHeight - 1;
+		float cY = 1.0f - 2.0f * this->p0.y / windowHeight;
+		return vec3(cX, cY, 0.0f);
+	}
+	const vec3 getP1() const {
+		float cX = 2.0f * this->p1.x / windowWidth - 1;
+		float cY = 1.0f - 2.0f * this->p1.y / windowHeight;
+		return vec3(cX, cY, 0.0f);
+	}
 	vec3 getDirection() { return this->p1 - this->p0; }
 	void updateEndPoints(const vec3& newP0, const vec3& newP1) {
 		this->p0 = newP0;
@@ -208,6 +215,7 @@ public:
 class LineCollection {
 private: 
 	std::vector<Line> lines;
+	std::vector<Line*> selectedLines;
 public:
 	LineCollection() {}
 
@@ -250,15 +258,14 @@ public:
 		return nullptr;
 	}
 
-	void updateEndPoints(const Line& selectedLine, const vec3& newP0, const vec3& newP1) {
+	void selectLine(float cX, float cY) {
+		selectedLines.push_back(isCursorOnLine(cX, cY));
 		for (Line& line : lines) {
-			if (&line == &selectedLine) {
-				line.updateEndPoints(newP0, newP1);
-				line.draw();
-				break;
-			}
+			printLineEquations(line.getP0(), line.getP1());
 		}
 	}
+
+	int getSelectedLinesSize() { return selectedLines.size(); }
 };
 
 PointCollection* pointCollection;
@@ -292,18 +299,26 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 	if (key == 'p') {
 		isDrawingPoints = true;
 		isDrawingLine = false;
+		isMovingLine = false;
+		isIntersect = false;
 	}
 	if (key == 'l') {
 		isDrawingPoints = false;
 		isDrawingLine = true;
+		isMovingLine = false;
+		isIntersect = false;
 	}
 	if (key == 'm') {
 		isDrawingPoints = false;
 		isDrawingLine = false;
 		isMovingLine = true;
+		isIntersect = false;
 	}
 	if (key == 'i') {
-		
+		isDrawingPoints = false;
+		isDrawingLine = false;
+		isMovingLine = false;
+		isIntersect = true;
 	}
 }
 
@@ -369,6 +384,10 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 			else {
 				printf("\nNo Line selected");
 			}
+		}
+		else if (isIntersect && lineCollection->getSelectedLinesSize() < 2) {
+			printf("\nIntersect");
+			lineCollection->selectLine(cX, cY);
 		}
 	} else if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
 		isMovingLine = false;	

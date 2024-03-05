@@ -186,18 +186,25 @@ public:
 	}
 
 	const vec3 getP0() const {
-		/*float cX = 2.0f * this->p0.x / windowHeight - 1;
-		float cY = 1.0f - 2.0f * this->p0.y / windowHeight;
-		return vec3(cX, cY, 0.0f);*/
 		return this->p0;
 	}
 	const vec3 getP1() const {
-		/*float cX = 2.0f * this->p1.x / windowWidth - 1;
-		float cY = 1.0f - 2.0f * this->p1.y / windowHeight;
-		return vec3(cX, cY, 0.0f);*/
 		return this->p1;
 	}
-	vec3 getDirection() { return this->p1 - this->p0; }
+
+	const vec3 getNDCP0() const {
+		float cX = -1 * (2.0f * this->p0.x / windowHeight - 1);
+		float cY = 1.0f - 2.0f * this->p0.y / windowHeight;
+		return vec3(cX, cY, 0.0f);
+	}
+
+	const vec3 getNDCP1() const {
+		float cX = -1 * (2.0f * this->p1.x / windowWidth - 1);
+		float cY = 1.0f - 2.0f * this->p1.y / windowHeight;
+		return vec3(cX, cY, 0.0f);
+	}
+
+	const vec3 getDirection() const { return this->p1 - this->p0; }
 	void updateEndPoints(const vec3& newP0, const vec3& newP1) {
 		this->p0 = newP0;
 		this->p1 = newP1;
@@ -263,11 +270,40 @@ public:
 	void selectLine(float cX, float cY) {
 		selectedLines.push_back(isCursorOnLine(cX, cY));
 		for (Line& line : lines) {
-			printLineEquations(line.getP0(), line.getP1());
+			printLineEquations(line.getNDCP0(), line.getNDCP1());
 		}
 	}
 
+	/*bool isIntersection(const Line& line1, const Line& line2) {
+		vec3 vector1 = line1.getNDCP1() - line1.getNDCP0();
+		vec3 vector2 = line2.getNDCP1() - line2.getNDCP0();
+		vec3 crossP = cross(vector1, vector2);
+		return length(crossP) > 1e-9;
+	}*/
+
+	Line& getSelectedLine(int i) { return lines[i]; }
+
 	int getSelectedLinesSize() { return selectedLines.size(); }
+
+	vec3 getIntersectionPoint(const Line& line1, const Line& line2) {
+		
+		vec3 p1 = line1.getNDCP0();
+		vec3 d1 = normalize(line1.getDirection());
+		vec3 p2 = line2.getNDCP0();
+		vec3 d2 = normalize(line2.getDirection());
+
+		float t = ((p2.x - p1.x) * d2.y - (p2.y - p1.y) * d2.x) / ((d1.x * d2.y) - (d1.y * d2.x));
+		float iX = p1.x + d1.x * t;
+		float iY = p1.y + d1.y * t;
+
+		vec3 intersection = vec3(iX, iY, 0.0f);
+
+		printf("\nt: %3.2f, iX: %3.2f, iY: %3.2f", t, iX, iY);
+
+		return intersection;
+	}
+
+	void clearSelectedLines() { selectedLines.clear(); }
 };
 
 PointCollection* pointCollection;
@@ -390,6 +426,18 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 		else if (isIntersect && lineCollection->getSelectedLinesSize() < 2) {
 			printf("\nIntersect");
 			lineCollection->selectLine(cX, cY);
+			printf("\n lines selected number: %d", lineCollection->getSelectedLinesSize());
+			if (lineCollection->getSelectedLinesSize() == 2) {
+				printf("\nlines have intersection");
+				printf("\ngetSelectedLine1: ");
+				lineCollection->printLineEquations(lineCollection->getSelectedLine(0).getNDCP0(), lineCollection->getSelectedLine(0).getNDCP1());
+				printf("\ngetSelectedLine2: ");
+				lineCollection->printLineEquations(lineCollection->getSelectedLine(1).getNDCP0(), lineCollection->getSelectedLine(1).getNDCP1());
+				vec3 intersection = lineCollection->getIntersectionPoint(lineCollection->getSelectedLine(0), lineCollection->getSelectedLine(1));
+				pointCollection->addPoint(intersection.x, intersection.y);
+				glutPostRedisplay();
+				lineCollection->clearSelectedLines();
+			}
 		}
 	} else if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
 		isMovingLine = false;	

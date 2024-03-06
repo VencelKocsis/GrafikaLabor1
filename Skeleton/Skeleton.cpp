@@ -33,7 +33,6 @@
 //=============================================================================================
 #include "framework.h"	
 
-// vertex shader in GLSL: It is a Raw string (C++11) since it contains new line characters
 const char* const vertexSource = R"(
 	#version 330				// Shader 3.3
 	precision highp float;		// normal floats, makes no difference on desktop computers
@@ -46,7 +45,6 @@ const char* const vertexSource = R"(
 	}
 )";
 
-// fragment shader in GLSL
 const char* const fragmentSource = R"(
 	#version 330			// Shader 3.3
 	precision highp float;	// normal floats, makes no difference on desktop computers
@@ -59,12 +57,13 @@ const char* const fragmentSource = R"(
 	}
 )";
 
-GPUProgram gpuProgram;//vertex and fragment shaders
+GPUProgram gpuProgram;
 bool isDrawingPoints = false;
 bool isDrawingLine = false;
 bool isMovingLine = false;
 bool isIntersect = false;
 
+// class Object: OpenGL diasor copy telibe: nem biztos
 class PointCollection {
 public:
 	std::vector<vec3> points;
@@ -72,8 +71,8 @@ public:
 	unsigned int vaoLine, vboLine;
 	std::vector<vec3> selectedPoints;
 
-	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
-								  0, 1, 0, 0,    // row-major!
+	float MVPtransf[4][4] = { 1, 0, 0, 0,    
+								  0, 1, 0, 0,    
 								  0, 0, 1, 0,
 								  0, 0, 0, 1 };
 
@@ -112,7 +111,15 @@ public:
 
 	bool pointExists(float cX, float cY) {
 		for (int i = 0; i < points.size(); i++) {
-			if (abs(points[i].x - cX) < 0.02 && abs(points[i].y - cY) < 0.02) {
+			float deltaX = points[i].x - cX;
+			float deltaY = points[i].y - cY;
+			if (deltaX < 0.0f) {
+				deltaX = (-1.0f) * deltaX;
+			}
+			if (deltaY < 0.0f) {
+				deltaY = (-1.0f) * deltaY;
+			}
+			if (deltaX < 0.02 && deltaY < 0.02) {
 				return true;
 			}
 		}
@@ -159,8 +166,12 @@ public:
 
 		vec3 direction = p1 - p0;
 
-		this->p0 = p0 - direction * 600;
-		this->p1 = p0 + direction * 600;
+		/* ezek helyett az egyenes implicit egyenletéből ki kell számolni külön az x, y értékeit
+		* be kell helyettesíteni x és y helyére pl az 1-et és kiszámolni az x, y értékeit külön
+		* valamelyiknek (x, y) értelmes (-1, 1) között kell lennie
+		* mert így a kapott pontban fogja metszeni az egyenes a 600x600 négyzet szélét
+		* és megadjuk a négyzet szélén lévő egyenes koordinátáit
+		*/ 
 
 		glGenVertexArrays(1, &vaoLine);
 		glBindVertexArray(vaoLine);
@@ -274,22 +285,15 @@ public:
 		}
 	}
 
-	/*bool isIntersection(const Line& line1, const Line& line2) {
-		vec3 vector1 = line1.getNDCP1() - line1.getNDCP0();
-		vec3 vector2 = line2.getNDCP1() - line2.getNDCP0();
-		vec3 crossP = cross(vector1, vector2);
-		return length(crossP) > 1e-9;
-	}*/
-
 	Line& getSelectedLine(int i) { return lines[i]; }
 
 	int getSelectedLinesSize() { return selectedLines.size(); }
 
 	vec3 getIntersectionPoint(const Line& line1, const Line& line2) {
 		
-		vec3 p1 = line1.getNDCP0();
+		vec3 p1 = line1.getP0();
 		vec3 d1 = normalize(line1.getDirection());
-		vec3 p2 = line2.getNDCP0();
+		vec3 p2 = line2.getP0();
 		vec3 d2 = normalize(line2.getDirection());
 
 		float t = ((p2.x - p1.x) * d2.y - (p2.y - p1.y) * d2.x) / ((d1.x * d2.y) - (d1.y * d2.x));
@@ -310,7 +314,6 @@ PointCollection* pointCollection;
 LineCollection* lineCollection;
 Line* selectedLine;
 
-// Initialization, create an OpenGL context
 void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
 	
@@ -321,7 +324,6 @@ void onInitialization() {
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
 }
 
-// Window has become invalid: Redraw
 void onDisplay() {
 	glClearColor(0.25f, 0.25f, 0.25f, 1.0f);// background color
 	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
@@ -332,7 +334,6 @@ void onDisplay() {
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
 
-// Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
 	if (key == 'p') {
 		isDrawingPoints = true;
@@ -360,12 +361,10 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 	}
 }
 
-// Key of ASCII code released
 void onKeyboardUp(unsigned char key, int pX, int pY) {}
 
-// Move mouse with key pressed
-void onMouseMotion(int pX, int pY) {	// pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
-	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
+void onMouseMotion(int pX, int pY) {	
+	float cX = 2.0f * pX / windowWidth - 1;
 	float cY = 1.0f - 2.0f * pY / windowHeight;
 	printf("\nMouse moved to (%3.2f, %3.2f)\n", cX, cY);
 	
@@ -391,10 +390,8 @@ void onMouseMotion(int pX, int pY) {	// pX, pY are the pixel coordinates of the 
 	}
 }
 
-// Mouse click event
-void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
-	// Convert to normalized device space
-	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
+void onMouse(int button, int state, int pX, int pY) {
+	float cX = 2.0f * pX / windowWidth - 1;
 	float cY = 1.0f - 2.0f * pY / windowHeight;
 
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
@@ -444,7 +441,6 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 	}
 }
 
-// Idle event indicating that some time elapsed: do animation here
 void onIdle() {
-	long time = glutGet(GLUT_ELAPSED_TIME); // elapsed time since the start of the program
+	long time = glutGet(GLUT_ELAPSED_TIME);
 }

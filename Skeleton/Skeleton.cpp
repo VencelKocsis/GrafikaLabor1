@@ -164,15 +164,6 @@ public:
 		this->color = color;
 		this->width = width;
 
-		//vec3 direction = p1 - p0;
-
-		/* ezek helyett az egyenes implicit egyenletéből ki kell számolni külön az x, y értékeit
-		* be kell helyettesíteni x és y helyére pl az 1-et és kiszámolni az x, y értékeit külön
-		* valamelyiknek (x, y) értelmes (-1, 1) között kell lennie
-		* mert így a kapott pontban fogja metszeni az egyenes a 600x600 négyzet szélét
-		* és megadjuk a négyzet szélén lévő egyenes koordinátáit
-		*/ 
-
 		std::vector<vec3> vertices = computeIntersectionPointsWithSquare(p0, p1);
 		this->p0 = vertices[0];
 		this->p1 = vertices[1];
@@ -229,8 +220,7 @@ public:
 	void updateVertices() {
 		vec3 newP0 = this->p0 + vec3(wTranslate.x, wTranslate.y, 0.0f);
 		vec3 newP1 = this->p1 + vec3(wTranslate.x, wTranslate.y, 0.0f);
-
-		//std::vector<vec3> vertices = { newP0, newP1 };
+		
 		std::vector<vec3> vertices = computeIntersectionPointsWithSquare(newP0, newP1);
 		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_DYNAMIC_DRAW);
@@ -244,23 +234,22 @@ public:
 
 		std::vector<vec3> points;
 
-		// Az egyenes paraméteres egyenlete: x = p0.x + t*dx, y = p0.y + t*dy
-		// Ahol t egy paraméter, ami a [0, 1] intervallumba esik, és ahol az egyenes mindkét végpontjának x és y koordinátája adott.
-
-		// A négyzet bal és jobb oldalának ellenőrzése
-		for (float x : {minX, maxX}) {
-			float t = (x - p0.x) / dx;
-			float y = p0.y + t * dy;
-			points.push_back(vec3(x, y, 0.0f));
+		if (dx != 0.0f) {
+			for (float x : {minX, maxX}) {
+				float t = (x - p0.x) / dx;
+				float y = p0.y + t * dy;
+				points.push_back(vec3(x, y, 0.0f));
+			}
 		}
 
-		// Ha az egyenes nem metszi a négyzetet, akkor ellenőrizzük a négyzet felső és alsó oldalát is
 		if (points.size() < 2) {
 			points.clear();
-			for (float y : {minY, maxY}) {
-				float t = (y - p0.y) / dy;
-				float x = p0.x + t * dx;
-				points.push_back(vec3(x, y, 0.0f));
+			if (dy != 0.0f) {
+				for (float y : {minY, maxY}) {
+					float t = (y - p0.y) / dy;
+					float x = p0.x + t * dx;
+					points.push_back(vec3(x, y, 0.0f));
+				}
 			}
 		}
 
@@ -333,6 +322,7 @@ public:
 		vec3 d2 = normalize(line2.getDirection());
 
 		float t = ((p2.x - p1.x) * d2.y - (p2.y - p1.y) * d2.x) / ((d1.x * d2.y) - (d1.y * d2.x));
+		
 		float iX = p1.x + d1.x * t;
 		float iY = p1.y + d1.y * t;
 
@@ -344,6 +334,9 @@ public:
 	}
 
 	void clearSelectedLines() { selectedLines.clear(); }
+
+	const Line& getLine(int i) const { return lines[i]; }
+	const int getLinesSize() const { return lines.size(); }
 };
 
 PointCollection* pointCollection;
@@ -355,19 +348,26 @@ void onInitialization() {
 	
 	pointCollection = new PointCollection();
 	lineCollection = new LineCollection();
-	
-	// create program for the GPU
+
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
 }
 
 void onDisplay() {
-	glClearColor(0.25f, 0.25f, 0.25f, 1.0f);// background color
-	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
+	glClearColor(0.25f, 0.25f, 0.25f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	//lineCollection->addLine(vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f), 3.0f);
+	//lineCollection->addLine(vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f), 3.0f);
+
+	pointCollection->addPoint(-1.0f, 0.0f);
+	pointCollection->addPoint(1.0f, 0.0f);
+	pointCollection->addPoint(0.0f, -1.0f);
+	pointCollection->addPoint(0.0f, 1.0f);
 
 	lineCollection->drawLines();
 	pointCollection->drawPoint();	
 
-	glutSwapBuffers(); // exchange buffers for double buffering
+	glutSwapBuffers(); 
 }
 
 void onKeyboard(unsigned char key, int pX, int pY) {
@@ -402,7 +402,6 @@ void onKeyboardUp(unsigned char key, int pX, int pY) {}
 void onMouseMotion(int pX, int pY) {	
 	float cX = 2.0f * pX / windowWidth - 1;
 	float cY = 1.0f - 2.0f * pY / windowHeight;
-	printf("\nMouse moved to (%3.2f, %3.2f)\n", cX, cY);
 	
 	static float prevX = 0.0f;
 	static float prevY = 0.0f;
@@ -473,8 +472,8 @@ void onMouse(int button, int state, int pX, int pY) {
 			}
 		}
 	} else if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
-		isMovingLine = false;	
-	}
+		isMovingLine = false;
+		}
 }
 
 void onIdle() {

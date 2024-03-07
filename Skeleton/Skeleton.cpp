@@ -63,7 +63,6 @@ bool isDrawingLine = false;
 bool isMovingLine = false;
 bool isIntersect = false;
 
-// class Object: OpenGL diasor copy telibe: nem biztos
 class PointCollection {
 public:
 	std::vector<vec3> points;
@@ -94,10 +93,10 @@ public:
 
 	void drawPoint() {
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
-		glUniform3f(location, 1.0f, 0.0f, 0.0f); // 3 floats
+		glUniform3f(location, 1.0f, 0.0f, 0.0f);
 
-		location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
-		glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);	// Load a 4x4 row-major float matrix to the specified location
+		location = glGetUniformLocation(gpuProgram.getId(), "MVP");	
+		glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);	
 
 		if (points.size() > 0) {
 			glBindVertexArray(vaoPointCollection);
@@ -110,7 +109,7 @@ public:
 	}
 
 	bool pointExists(float cX, float cY) {
-		for (int i = 0; i < points.size(); i++) {
+		for (size_t i = 0; i < points.size(); i++) {
 			float deltaX = points[i].x - cX;
 			float deltaY = points[i].y - cY;
 			if (deltaX < 0.0f) {
@@ -129,9 +128,6 @@ public:
 	void selectPoint(float cX, float cY) {
 		if (pointExists(cX, cY)) {
 			addSelectedPoint(cX, cY);
-		}
-		else {
-			printf("\nThe Selected Point does not exists. Select a valid point");
 		}
 	}
 
@@ -174,7 +170,6 @@ public:
 		glGenBuffers(1, &vboLine);
 		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
 
-		//std::vector<vec3> vertices = { this->p0, this->p1 };
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_STATIC_DRAW);
 
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -216,7 +211,6 @@ public:
 		this->p1 = newP1;
 	}
 
-	void AddTranslation(vec2 wT) { wTranslate = wTranslate + wT; }
 	void updateVertices() {
 		vec3 newP0 = this->p0 + vec3(wTranslate.x, wTranslate.y, 0.0f);
 		vec3 newP1 = this->p1 + vec3(wTranslate.x, wTranslate.y, 0.0f);
@@ -254,6 +248,14 @@ public:
 		}
 
 		return points;
+	}
+
+	void moveLine(float cX, float cY) {
+		vec3 direction = normalize(this->getDirection());
+		vec3 newP0 = vec3(cX, cY, 0.0f);
+		vec3 newP1 = newP0 + direction;
+		this->p0 = newP0;
+		this->p1 = newP1;
 	}
 };
 
@@ -305,9 +307,6 @@ public:
 
 	void selectLine(float cX, float cY) {
 		selectedLines.push_back(isCursorOnLine(cX, cY));
-		for (Line& line : lines) {
-			printLineEquations(line.getNDCP0(), line.getNDCP1());
-		}
 	}
 
 	Line& getSelectedLine(int i) { return lines[i]; }
@@ -327,8 +326,6 @@ public:
 		float iY = p1.y + d1.y * t;
 
 		vec3 intersection = vec3(iX, iY, 0.0f);
-
-		printf("\nt: %3.2f, iX: %3.2f, iY: %3.2f", t, iX, iY);
 
 		return intersection;
 	}
@@ -355,14 +352,6 @@ void onInitialization() {
 void onDisplay() {
 	glClearColor(0.25f, 0.25f, 0.25f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
-
-	//lineCollection->addLine(vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f), 3.0f);
-	//lineCollection->addLine(vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f), 3.0f);
-
-	pointCollection->addPoint(-1.0f, 0.0f);
-	pointCollection->addPoint(1.0f, 0.0f);
-	pointCollection->addPoint(0.0f, -1.0f);
-	pointCollection->addPoint(0.0f, 1.0f);
 
 	lineCollection->drawLines();
 	pointCollection->drawPoint();	
@@ -402,23 +391,9 @@ void onKeyboardUp(unsigned char key, int pX, int pY) {}
 void onMouseMotion(int pX, int pY) {	
 	float cX = 2.0f * pX / windowWidth - 1;
 	float cY = 1.0f - 2.0f * pY / windowHeight;
-	
-	static float prevX = 0.0f;
-	static float prevY = 0.0f;
-
-	if (!isMovingLine || prevX == 0 || prevY == 0) {
-		prevX = cX;
-		prevY = cY;
-	}
 
 	if (isMovingLine && selectedLine) {
-		float deltaX = cX - prevX;
-		float deltaY = cY - prevY;
-		
-		prevX = cX;
-		prevY = cY;
-
-		selectedLine->AddTranslation(vec2(deltaX, deltaY));
+		selectedLine->moveLine(cX, cY);
 		selectedLine->updateVertices();
 
 		glutPostRedisplay();
@@ -447,35 +422,24 @@ void onMouse(int button, int state, int pX, int pY) {
 			printf("\nPoint (%3.2f, %3.2f) added", cX, cY);
 		}
 		else if (isMovingLine) {
+			printf("\nMove");
 			if (lineCollection->isCursorOnLine(cX, cY)) {
 				selectedLine = lineCollection->isCursorOnLine(cX, cY);
-				printf("\nLine selected");
-			}
-			else {
-				printf("\nNo Line selected");
 			}
 		}
 		else if (isIntersect && lineCollection->getSelectedLinesSize() < 2) {
 			printf("\nIntersect");
 			lineCollection->selectLine(cX, cY);
-			printf("\n lines selected number: %d", lineCollection->getSelectedLinesSize());
 			if (lineCollection->getSelectedLinesSize() == 2) {
-				printf("\nlines have intersection");
-				printf("\ngetSelectedLine1: ");
-				lineCollection->printLineEquations(lineCollection->getSelectedLine(0).getNDCP0(), lineCollection->getSelectedLine(0).getNDCP1());
-				printf("\ngetSelectedLine2: ");
-				lineCollection->printLineEquations(lineCollection->getSelectedLine(1).getNDCP0(), lineCollection->getSelectedLine(1).getNDCP1());
 				vec3 intersection = lineCollection->getIntersectionPoint(lineCollection->getSelectedLine(0), lineCollection->getSelectedLine(1));
 				pointCollection->addPoint(intersection.x, intersection.y);
 				glutPostRedisplay();
 				lineCollection->clearSelectedLines();
 			}
 		}
-	} else if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
-		isMovingLine = false;
-		}
+	}
 }
 
 void onIdle() {
-	long time = glutGet(GLUT_ELAPSED_TIME);
+	
 }

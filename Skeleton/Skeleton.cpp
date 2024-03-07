@@ -164,7 +164,7 @@ public:
 		this->color = color;
 		this->width = width;
 
-		vec3 direction = p1 - p0;
+		//vec3 direction = p1 - p0;
 
 		/* ezek helyett az egyenes implicit egyenletéből ki kell számolni külön az x, y értékeit
 		* be kell helyettesíteni x és y helyére pl az 1-et és kiszámolni az x, y értékeit külön
@@ -173,13 +173,17 @@ public:
 		* és megadjuk a négyzet szélén lévő egyenes koordinátáit
 		*/ 
 
+		std::vector<vec3> vertices = computeIntersectionPointsWithSquare(p0, p1);
+		this->p0 = vertices[0];
+		this->p1 = vertices[1];
+
 		glGenVertexArrays(1, &vaoLine);
 		glBindVertexArray(vaoLine);
 
 		glGenBuffers(1, &vboLine);
 		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
 
-		std::vector<vec3> vertices = { this->p0, this->p1 };
+		//std::vector<vec3> vertices = { this->p0, this->p1 };
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_STATIC_DRAW);
 
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -226,9 +230,41 @@ public:
 		vec3 newP0 = this->p0 + vec3(wTranslate.x, wTranslate.y, 0.0f);
 		vec3 newP1 = this->p1 + vec3(wTranslate.x, wTranslate.y, 0.0f);
 
-		std::vector<vec3> vertices = { newP0, newP1 };
+		//std::vector<vec3> vertices = { newP0, newP1 };
+		std::vector<vec3> vertices = computeIntersectionPointsWithSquare(newP0, newP1);
 		glBindBuffer(GL_ARRAY_BUFFER, vboLine);
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_DYNAMIC_DRAW);
+	}
+
+	std::vector<vec3> computeIntersectionPointsWithSquare(const vec3& p0, const vec3& p1) const {
+		float minX = -1.0f, maxX = 1.0f, minY = -1.0f, maxY = 1.0f;
+
+		float dx = p1.x - p0.x;
+		float dy = p1.y - p0.y;
+
+		std::vector<vec3> points;
+
+		// Az egyenes paraméteres egyenlete: x = p0.x + t*dx, y = p0.y + t*dy
+		// Ahol t egy paraméter, ami a [0, 1] intervallumba esik, és ahol az egyenes mindkét végpontjának x és y koordinátája adott.
+
+		// A négyzet bal és jobb oldalának ellenőrzése
+		for (float x : {minX, maxX}) {
+			float t = (x - p0.x) / dx;
+			float y = p0.y + t * dy;
+			points.push_back(vec3(x, y, 0.0f));
+		}
+
+		// Ha az egyenes nem metszi a négyzetet, akkor ellenőrizzük a négyzet felső és alsó oldalát is
+		if (points.size() < 2) {
+			points.clear();
+			for (float y : {minY, maxY}) {
+				float t = (y - p0.y) / dy;
+				float x = p0.x + t * dx;
+				points.push_back(vec3(x, y, 0.0f));
+			}
+		}
+
+		return points;
 	}
 };
 
@@ -341,19 +377,19 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 		isMovingLine = false;
 		isIntersect = false;
 	}
-	if (key == 'l') {
+	else if (key == 'l') {
 		isDrawingPoints = false;
 		isDrawingLine = true;
 		isMovingLine = false;
 		isIntersect = false;
 	}
-	if (key == 'm') {
+	else if (key == 'm') {
 		isDrawingPoints = false;
 		isDrawingLine = false;
 		isMovingLine = true;
 		isIntersect = false;
 	}
-	if (key == 'i') {
+	else if (key == 'i') {
 		isDrawingPoints = false;
 		isDrawingLine = false;
 		isMovingLine = false;
